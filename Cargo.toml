@@ -1,0 +1,19 @@
+[package]
+name = "dt-client"
+version = "0.1.0"
+authors = ["Rafael"]
+edition = "2018"
+
+
+[dependencies]
+
+rumq-client = "0.1.0-alpha.10"
+tokio = { version = "0.2", features = ["rt-threaded", "io-util", "tcp", "dns", "stream", "sync", "time", "macros"] }
+rand = "0.7"
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+reqwest = {version ="0.10.6",features = ["json"]}
+log = "0.4.8"
+env_logger = "0.7.1"
+ctrlc = "3.1.4"
+lazy_static = "1.4.0"
