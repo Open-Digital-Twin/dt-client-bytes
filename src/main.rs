@@ -55,12 +55,14 @@ async fn main() {
   let address = env::var("MQTT_BROKER_ADDRESS").unwrap();
   let port = env::var("MQTT_BROKER_PORT").unwrap().parse::<u16>().unwrap();
 
-  let buffer_size = env::var("CLIENT_BUFFER_BYTE_SIZE").unwrap().parse::<usize>().unwrap_or(8);
-  info!("Starting client. Host at {}:{}", address.clone(), port.clone());
+  let buffer_size = env::var("MQTT_CLIENT_BUFFER_BYTE_SIZE").unwrap_or("8".to_string()).parse::<usize>().unwrap();
+  let message_limit = env::var("MQTT_CLIENT_MESSAGES_TO_SEND").unwrap_or("250".to_string()).parse::<u64>().unwrap();
 
+  info!("Starting client. Host at {}:{}", address.clone(), port.clone());
+  
   let count = get_lines();
   
-  let (requests_tx, requests_rx) = channel(50);
+  let (requests_tx, requests_rx) = channel(1000);
   let mut eloop;
   let mut mqttoptions = MqttOptions::new("client", address.clone(), port);
   mqttoptions.set_keep_alive(5).set_throttle(Duration::from_secs(1));
@@ -78,10 +80,14 @@ async fn main() {
       let p = Arc::clone(&published_cl);
       
       let mut index: u64 = 0;
-      loop {
-        let payload: String = std::iter::repeat(())
+      while index < message_limit {
+        let index_str = index.to_string();
+        let mut payload: String = std::iter::repeat(())
           .map(|()| thread_rng().sample(Alphanumeric))
-          .take(buffer_size).collect();
+          .take(buffer_size - index_str.len() - 1).collect();
+
+        payload.insert_str(0, &" ");
+        payload.insert_str(0, &index_str);
         let t = topic.clone();
 
         tx.clone().send(publish_request(&(payload.as_str()), &t.clone())).await.unwrap();
@@ -94,16 +100,20 @@ async fn main() {
           drop(guard);
         }
 
-        info!("{}::{}::{}", index, t, payload);
+        info!("{}::{} \"{}\"", index, t, payload);
 
         index += 1;
-        time::delay_for(Duration::from_millis(50)).await;
+        time::delay_for(Duration::from_millis(500)).await;
       }
     });
   }
 
-  let mut stream = eloop.connect().await.unwrap();
-  while let Some(_item) = stream.next().await {}
+  loop {
+    let mut stream = eloop.connect().await.unwrap();
+    while let Some(_item) = stream.next().await {}
+
+    time::delay_for(Duration::from_secs(1)).await;
+  }
 }
 
 fn get_qos(variable: &str) -> QoS {
