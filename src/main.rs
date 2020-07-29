@@ -8,14 +8,14 @@ use tokio::{task, time};
 // use std::thread;
 
 use std::env;
-use rumq_client::{eventloop, MqttOptions, Publish, QoS, Request};
+use rumqttc::{MqttOptions, QoS, EventLoop, Request, Publish, Outgoing};
 use std::time::Duration;
 use std::fs::File;
 use std::io::{BufReader};
 use std::io::prelude::*;
 
 extern crate env_logger;
-use log::{info};
+use log::{info, error};
 
 use ctrlc::set_handler;
 
@@ -56,18 +56,18 @@ async fn main() {
   let port = env::var("MQTT_BROKER_PORT").unwrap().parse::<u16>().unwrap();
 
   let buffer_size = env::var("MQTT_CLIENT_BUFFER_BYTE_SIZE").unwrap_or("8".to_string()).parse::<usize>().unwrap();
-  let message_limit = env::var("MQTT_CLIENT_MESSAGES_TO_SEND").unwrap_or("250".to_string()).parse::<u64>().unwrap();
+  let message_limit = env::var("MQTT_CLIENT_MESSAGES_TO_SEND").unwrap_or("100".to_string()).parse::<u64>().unwrap();
+  let message_delay_ms = env::var("MQTT_CLIENT_MESSAGES_TO_SEND").unwrap_or("0".to_string()).parse::<u64>().unwrap();
 
   info!("Starting client. Host at {}:{}", address.clone(), port.clone());
   
   let count = get_lines();
   
-  let (requests_tx, requests_rx) = channel(1000);
-  let mut eloop;
   let mut mqttoptions = MqttOptions::new("client", address.clone(), port);
-  mqttoptions.set_keep_alive(5).set_throttle(Duration::from_secs(1));
-  eloop = eventloop(mqttoptions, requests_rx);
-
+  mqttoptions.set_keep_alive(30);
+  let mut eventloop = EventLoop::new(mqttoptions, 20).await;
+  let requests_tx = eventloop.handle();
+  
   let tx_c = requests_tx.clone();
   for i in 0..count {
     let topic = get_topic(i);
@@ -88,9 +88,11 @@ async fn main() {
 
         payload.insert_str(0, &" ");
         payload.insert_str(0, &index_str);
+
+        payload.insert_str(0, &"!!");
         let t = topic.clone();
 
-        tx.clone().send(publish_request(&(payload.as_str()), &t.clone())).await.unwrap();
+        tx.send(publish_request(&(payload.as_str()), &t.clone())).await.unwrap();
         
         {
           // Access global mutexed variable
@@ -103,16 +105,28 @@ async fn main() {
         info!("{}::{} \"{}\"", index, t, payload);
 
         index += 1;
-        time::delay_for(Duration::from_millis(500)).await;
+        time::delay_for(Duration::from_millis(message_delay_ms)).await;
       }
+      info!("Thread {} done with {} messages.", i, index);
     });
   }
 
   loop {
-    let mut stream = eloop.connect().await.unwrap();
-    while let Some(_item) = stream.next().await {}
+    match eventloop.poll().await {
+      Ok(mut _notification) => {
+        let (incoming, outgoing) = _notification;
 
-    time::delay_for(Duration::from_secs(1)).await;
+        if incoming.is_some() {
+          info!("INC: {:?}", incoming);
+        }
+
+        if outgoing.is_some() {
+          info!("OUT: {:?}", outgoing);
+        }
+      },
+      Err(e) => { error!("{:?}", e); }
+    }
+    time::delay_for(Duration::from_millis(0)).await;
   }
 }
 
