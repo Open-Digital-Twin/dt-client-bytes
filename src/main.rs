@@ -8,7 +8,7 @@ use tokio::{task, time};
 // use std::thread;
 
 use std::env;
-use rumqttc::{MqttOptions, QoS, EventLoop, Request, Publish, Outgoing};
+use rumqttc::{MqttOptions, QoS, EventLoop, Request, Publish};
 use std::time::Duration;
 use std::fs::File;
 use std::io::{BufReader};
@@ -57,14 +57,14 @@ async fn main() {
 
   let buffer_size = env::var("MQTT_CLIENT_BUFFER_BYTE_SIZE").unwrap_or("8".to_string()).parse::<usize>().unwrap();
   let message_limit = env::var("MQTT_CLIENT_MESSAGES_TO_SEND").unwrap_or("100".to_string()).parse::<u64>().unwrap();
-  let message_delay_ms = env::var("MQTT_CLIENT_MESSAGES_TO_SEND").unwrap_or("0".to_string()).parse::<u64>().unwrap();
+  let message_delay_ms = env::var("MQTT_CLIENT_MESSAGE_DELAY_MS").unwrap_or("0".to_string()).parse::<u64>().unwrap();
 
   info!("Starting client. Host at {}:{}", address.clone(), port.clone());
   
   let count = get_lines();
-  
   let mut mqttoptions = MqttOptions::new("client", address.clone(), port);
   mqttoptions.set_keep_alive(30);
+
   let mut eventloop = EventLoop::new(mqttoptions, 20).await;
   let requests_tx = eventloop.handle();
   
@@ -89,7 +89,6 @@ async fn main() {
         payload.insert_str(0, &" ");
         payload.insert_str(0, &index_str);
 
-        payload.insert_str(0, &"!!");
         let t = topic.clone();
 
         tx.send(publish_request(&(payload.as_str()), &t.clone())).await.unwrap();
