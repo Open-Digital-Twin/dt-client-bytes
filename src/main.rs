@@ -152,7 +152,7 @@ async fn main() {
         if outgoing.is_some() {
           match outgoing.unwrap() {
             Outgoing::Publish(publish) => {
-              info!("{:?}", publish);
+              info!("Publish {:?}", publish);
               notification_counter.Pub += 1;
             },
             _ => {}
@@ -163,7 +163,7 @@ async fn main() {
       Err(e) => { error!("{:?}", e); }
     }
 
-    if notification_counter.Pub == message_limit {
+    if notification_counter.Pub >= message_limit {
       info!("{:#?}", notification_counter);
     }
 
