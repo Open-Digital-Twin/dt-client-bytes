@@ -4,7 +4,7 @@ RUN cd /tmp && USER=root cargo new --bin dt-client
 WORKDIR /tmp/dt-client
 
 # Build Rust skeleton project, caching dependencies, before building.
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 RUN touch build.rs && echo "fn main() {println!(\"cargo:rerun-if-changed=\\\"/tmp/dt-client/build.rs\\\"\");}" >> build.rs
 RUN cargo build --release
 
