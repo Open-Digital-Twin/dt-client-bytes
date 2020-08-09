@@ -19,4 +19,4 @@ RUN apt-get update
 RUN apt-get install libssl-dev -y
 COPY --from=builder /tmp/dt-client-bytes/target/release/dt-client-bytes /usr/local/bin/dt-client-bytes
 COPY topic_names.txt topic_names.txt
-CMD [ "dt-client-bytes" ]
+COPY wait-for wait-for
