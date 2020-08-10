@@ -1,7 +1,7 @@
 [package]
-name = "dt-client"
+name = "dt-client-bytes"
 version = "0.1.0"
-authors = ["Rafael"]
+authors = ["Francisco Knebel", "Rafael Trevisan"]
 edition = "2018"
 
 

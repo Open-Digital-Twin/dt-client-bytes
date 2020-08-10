@@ -71,7 +71,11 @@ async fn main() {
 
   info!("Starting client. Host at {}:{}", address.clone(), port.clone());
   
-  let mut mqttoptions = MqttOptions::new("client", address.clone(), port);
+  let id: String = std::iter::repeat(())
+    .map(|()| thread_rng().sample(Alphanumeric))
+    .take(10).collect();
+
+  let mut mqttoptions = MqttOptions::new(id, address.clone(), port);
   mqttoptions.set_keep_alive(30);
 
   let mut eventloop = EventLoop::new(mqttoptions, 20).await;
