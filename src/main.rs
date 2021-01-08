@@ -1,6 +1,5 @@
 #[macro_use]
 extern crate serde;
-use tokio::stream::StreamExt;
 use tokio::sync::mpsc::{channel};
 use tokio::{task, time};
 
@@ -8,7 +7,7 @@ use tokio::{task, time};
 // use std::thread;
 
 use std::env;
-use rumqttc::{MqttOptions, QoS, EventLoop, Request, Publish, Incoming, Outgoing};
+use rumqttc::{MqttOptions, QoS, AsyncClient, Request, Publish, Incoming, Outgoing, Event};
 use std::time::Duration;
 use std::fs::File;
 use std::io::{BufReader};
@@ -77,9 +76,9 @@ async fn main() {
 
   let mut mqttoptions = MqttOptions::new(id, address.clone(), port);
   mqttoptions.set_keep_alive(0);
-  mqttoptions.clean_session(false);
+  mqttoptions.set_clean_session(false);
 
-  let mut eventloop = EventLoop::new(mqttoptions, 20).await;
+  let (mut _client, mut eventloop) = AsyncClient::new(mqttoptions, 20);
   let requests_tx = eventloop.handle();
   
   let tx = requests_tx.clone();
@@ -114,7 +113,7 @@ async fn main() {
       info!("{}::{} \"{}\"", index, t, payload);
 
       index += 1;
-      time::delay_for(Duration::from_millis(message_delay_ms)).await;
+      time::sleep(Duration::from_millis(message_delay_ms)).await;
     }
     info!("Thread {} done with {} messages.", topic, index);
   });
@@ -129,40 +128,38 @@ async fn main() {
 
   loop {
     match eventloop.poll().await {
-      Ok(mut _notification) => {
-        let (incoming, outgoing) = _notification;
-
-        if incoming.is_some() {
-          match incoming.unwrap() {
-            Incoming::PubAck(ack) => {
-              info!("{:?}", ack);
-              notification_counter.PubAck += 1;
-            },
-            Incoming::PubRec(ack) => {
-              info!("{:?}", ack);
-              notification_counter.PubRec += 1;
-            },
-            Incoming::PubRel(ack) => {
-              info!("{:?}", ack);
-              notification_counter.PubRel += 1;
-            },
-            Incoming::PubComp(ack) => {
-              info!("{:?}", ack);
-              notification_counter.PubComp += 1;
-            },
-            _ => {}
+      Ok(event) => {
+        match event {
+          Event::Incoming(packet) => {
+            match packet {
+              Incoming::PubAck(ack) => {
+                info!("{:?}", ack);
+                notification_counter.PubAck += 1;
+              },
+              Incoming::PubRec(ack) => {
+                info!("{:?}", ack);
+                notification_counter.PubRec += 1;
+              },
+              Incoming::PubRel(ack) => {
+                info!("{:?}", ack);
+                notification_counter.PubRel += 1;
+              },
+              Incoming::PubComp(ack) => {
+                info!("{:?}", ack);
+                notification_counter.PubComp += 1;
+              },
+              _ => {}
+            }
           }
-        }
-
-        if outgoing.is_some() {
-          match outgoing.unwrap() {
-            Outgoing::Publish(publish) => {
-              info!("Publish {:?}", publish);
-              notification_counter.Pub += 1;
-            },
-            _ => {}
+          Event::Outgoing(packet) => {
+            match packet {
+              Outgoing::Publish(publish) => {
+                info!("Publish {:?}", publish);
+                notification_counter.Pub += 1;
+              },
+              _ => {}
+            }
           }
-
         }
       },
       Err(e) => { error!("{:?}", e); }
@@ -172,7 +169,7 @@ async fn main() {
       info!("{:#?}", notification_counter);
     }
 
-    time::delay_for(Duration::from_millis(0)).await;
+    time::sleep(Duration::from_millis(0)).await;
   }
 }
 
