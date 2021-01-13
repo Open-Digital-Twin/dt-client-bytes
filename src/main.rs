@@ -75,7 +75,7 @@ async fn main() {
     .take(10).collect();
 
   let mut mqttoptions = MqttOptions::new(id, address.clone(), port);
-  mqttoptions.set_keep_alive(0);
+  mqttoptions.set_keep_alive(30);
   mqttoptions.set_clean_session(false);
 
   let (mut _client, mut eventloop) = AsyncClient::new(mqttoptions, 20);
