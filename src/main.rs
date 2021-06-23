@@ -60,7 +60,7 @@ async fn main() {
   let p = Arc::clone(&published);
   set_handler(move || handle_close(p.clone())).expect("Error setting Ctrl-C handler");
   
-  let container_delay = env::var("CONTAINER_DELAY_S").unwrap_or("0".to_string()).parse::<usize>().unwrap();
+  let container_delay = env::var("CONTAINER_DELAY_S").unwrap_or("0".to_string()).parse::<u64>().unwrap();
   time::sleep(Duration::from_secs(container_delay)).await;
 
   let address = env::var("MQTT_BROKER_ADDRESS").unwrap();
