@@ -59,6 +59,9 @@ async fn main() {
   let published: Arc<Mutex<HashMap<String, i64>>> = Arc::new(Mutex::new(HashMap::new()));
   let p = Arc::clone(&published);
   set_handler(move || handle_close(p.clone())).expect("Error setting Ctrl-C handler");
+  
+  let container_delay = env::var("CONTAINER_DELAY_S").unwrap_or("0".to_string()).parse::<usize>().unwrap();
+  time::sleep(Duration::from_secs(container_delay)).await;
 
   let address = env::var("MQTT_BROKER_ADDRESS").unwrap();
   let port = env::var("MQTT_BROKER_PORT").unwrap().parse::<u16>().unwrap();
