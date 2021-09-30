@@ -113,7 +113,8 @@ async fn main() {
         drop(guard);
       }
 
-      info!("{}::{} \"{}\"", index, t, payload);
+//       info!("{}::{} \"{}\"", index, t, payload);
+      info!("{}::{} \"{}\"", index, t, index);
 
       index += 1;
       time::sleep(Duration::from_millis(message_delay_ms)).await;
