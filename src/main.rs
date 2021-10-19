@@ -2,6 +2,7 @@
 extern crate serde;
 use tokio::sync::mpsc::{channel};
 use tokio::{task, time};
+use chrono::Utc;
 
 // use std::sync::mpsc::channel;
 // use std::thread;
@@ -96,8 +97,10 @@ async fn main() {
       let index_str = index.to_string();
       let mut payload: String = std::iter::repeat(())
         .map(|()| thread_rng().sample(Alphanumeric))
-        .take(buffer_size - index_str.len() - 1).collect();
+        .take(buffer_size - index_str.len() - 35).collect();
 
+      payload.insert_str(0, &" ");
+      payload.insert_str(0, &(Utc::now()).to_string());
       payload.insert_str(0, &" ");
       payload.insert_str(0, &index_str);
 
