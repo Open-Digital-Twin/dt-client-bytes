@@ -176,12 +176,14 @@ async fn main() {
   let message_limit = env::var("MQTT_CLIENT_MESSAGES_TO_SEND").unwrap_or("100".to_string()).parse::<u64>().unwrap();
   let message_delay_ms = env::var("MQTT_CLIENT_MESSAGE_DELAY_MS").unwrap_or("0".to_string()).parse::<u64>().unwrap();
   let topic = env::var("MQTT_CLIENT_TOPIC").unwrap();
+  let thread_delay = env::var("MQTT_THREAD_DELAY").unwrap().parse::<u64>().unwrap();
   
   let clients = env::var("MQTT_AMOUNT_OF_CLIENTS").unwrap_or("1".to_string()).parse::<usize>().unwrap();
   let mut client_vec: Vec<usize> = [].to_vec();
   
   for n in 1..clients+1 {
-    client_vec.push(n)
+    time::sleep(Duration::from_secs(thread_delay)).await;
+    client_vec.push(n);
   }
   
   let tasks: Vec<_> = client_vec
