@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate serde;
 use tokio::sync::mpsc::{channel};
-use tokio::{task, time};
+use tokio::{task, time, signal};
 use chrono::Utc;
 
 // use std::sync::mpsc::channel;
@@ -53,26 +53,8 @@ fn handle_close(published: Arc<Mutex<HashMap<String, i64>>>) {
   info!("Published {} messages in {} topics.", total_messages, total_topics);
 }
 
-#[tokio::main]
-async fn main() {
-  env_logger::init();
-
-  let published: Arc<Mutex<HashMap<String, i64>>> = Arc::new(Mutex::new(HashMap::new()));
-  let p = Arc::clone(&published);
-  set_handler(move || handle_close(p.clone())).expect("Error setting Ctrl-C handler");
-  
-  let container_delay = env::var("CONTAINER_DELAY_S").unwrap_or("0".to_string()).parse::<u64>().unwrap();
-  time::sleep(Duration::from_secs(container_delay)).await;
-
-  let address = env::var("MQTT_BROKER_ADDRESS").unwrap();
-  let port = env::var("MQTT_BROKER_PORT").unwrap().parse::<u16>().unwrap();
-
-  let buffer_size = env::var("MQTT_CLIENT_BUFFER_BYTE_SIZE").unwrap_or("8".to_string()).parse::<usize>().unwrap();
-  let message_limit = env::var("MQTT_CLIENT_MESSAGES_TO_SEND").unwrap_or("100".to_string()).parse::<u64>().unwrap();
-  let message_delay_ms = env::var("MQTT_CLIENT_MESSAGE_DELAY_MS").unwrap_or("0".to_string()).parse::<u64>().unwrap();
-  let topic = env::var("MQTT_CLIENT_TOPIC").unwrap();
-
-  info!("Starting client. Host at {}:{}", address.clone(), port.clone());
+async fn client_thread(client: usize, address: String, port: u16, topic: String, buffer_size: usize, message_limit: u64, message_delay_ms: u64) {
+  info!("Starting client {}. Host at {}:{}", client, address, port);
   
   let id: String = std::iter::repeat(())
     .map(|()| thread_rng().sample(Alphanumeric))
@@ -86,11 +68,9 @@ async fn main() {
   let requests_tx = eventloop.handle();
   
   let tx = requests_tx.clone();
-  let published_cl = Arc::clone(&published);
-    
+
   task::spawn(async move {
     info!("Thread of topic {}", topic.clone());
-    let p = Arc::clone(&published_cl);
     
     let mut index: u64 = 0;
     while index < message_limit {
@@ -108,15 +88,14 @@ async fn main() {
 
       tx.send(publish_request(&(payload.as_str()), &t.clone())).await.unwrap();
 
-      {
-        // Access global mutexed variable
-        let mut guard = p.lock().unwrap();
-        guard.entry(t.clone()).or_insert(0);
-        guard.insert(t.clone(), 1);
-        drop(guard);
-      }
+      // {
+      //   // Access global mutexed variable
+      //   let mut guard = p.lock().unwrap();
+      //   guard.entry(t.clone()).or_insert(0);
+      //   guard.insert(t.clone(), 1);
+      //   drop(guard);
+      // }
 
-//       info!("{}::{} \"{}\"", index, t, payload);
       info!("{}::{} \"{}\"", index, t, index);
 
       index += 1;
@@ -177,6 +156,54 @@ async fn main() {
     }
 
     time::sleep(Duration::from_millis(0)).await;
+  }
+}
+
+#[tokio::main]
+async fn main() {
+  env_logger::init();
+
+  let published: Arc<Mutex<HashMap<String, i64>>> = Arc::new(Mutex::new(HashMap::new()));
+  let p = Arc::clone(&published);
+  
+  let container_delay = env::var("CONTAINER_DELAY_S").unwrap_or("0".to_string()).parse::<u64>().unwrap();
+  time::sleep(Duration::from_secs(container_delay)).await;
+  
+  let address = env::var("MQTT_BROKER_ADDRESS").unwrap(); 
+  let port = env::var("MQTT_BROKER_PORT").unwrap().parse::<u16>().unwrap();
+  
+  let buffer_size = env::var("MQTT_CLIENT_BUFFER_BYTE_SIZE").unwrap_or("8".to_string()).parse::<usize>().unwrap();
+  let message_limit = env::var("MQTT_CLIENT_MESSAGES_TO_SEND").unwrap_or("100".to_string()).parse::<u64>().unwrap();
+  let message_delay_ms = env::var("MQTT_CLIENT_MESSAGE_DELAY_MS").unwrap_or("0".to_string()).parse::<u64>().unwrap();
+  let topic = env::var("MQTT_CLIENT_TOPIC").unwrap();
+  
+  let clients = env::var("MQTT_AMOUNT_OF_CLIENTS").unwrap_or("1".to_string()).parse::<usize>().unwrap();
+  let mut client_vec: Vec<usize> = [].to_vec();
+  
+  for n in 1..clients+1 {
+    client_vec.push(n)
+  }
+  
+  let tasks: Vec<_> = client_vec
+  .into_iter()
+  .map(|client| {
+    let a = address.clone();
+    let t = topic.clone();
+    return task::spawn(async move {
+      return client_thread(client, a, port, t, buffer_size, message_limit, message_delay_ms).await;
+    });
+  }).collect();
+
+  match signal::ctrl_c().await {
+    Ok(()) => {},
+    Err(err) => {
+        eprintln!("Unable to listen for shutdown signal: {}", err);
+    },
+  }
+
+  handle_close(p.clone());
+  for task in tasks {
+    task.abort();
   }
 }
 
