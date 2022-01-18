@@ -180,7 +180,8 @@ async fn main() {
   
   let clients = env::var("MQTT_AMOUNT_OF_CLIENTS").unwrap_or("1".to_string()).parse::<usize>().unwrap();
   let mut client_vec: Vec<usize> = [].to_vec();
-  
+  let mut tn = 0;
+
   for n in 1..clients+1 {
     client_vec.push(n);
   }
@@ -190,10 +191,11 @@ async fn main() {
   .map(|client| {
     let a = address.clone();
     let t = topic.clone();
+    tn += 1;
     return task::spawn(async move {
+      time::sleep(Duration::from_secs(thread_delay * tn)).await;
       return client_thread(client, a, port, t, buffer_size, message_limit, message_delay_ms).await;
     });
-    time::sleep(Duration::from_secs(thread_delay)).await;
   }).collect();
 
   match signal::ctrl_c().await {
