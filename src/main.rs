@@ -182,7 +182,6 @@ async fn main() {
   let mut client_vec: Vec<usize> = [].to_vec();
   
   for n in 1..clients+1 {
-    time::sleep(Duration::from_secs(thread_delay)).await;
     client_vec.push(n);
   }
   
@@ -194,6 +193,7 @@ async fn main() {
     return task::spawn(async move {
       return client_thread(client, a, port, t, buffer_size, message_limit, message_delay_ms).await;
     });
+    time::sleep(Duration::from_secs(thread_delay)).await;
   }).collect();
 
   match signal::ctrl_c().await {
