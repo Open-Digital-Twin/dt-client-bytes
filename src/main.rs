@@ -190,7 +190,9 @@ async fn main() {
   .into_iter()
   .map(|client| {
     let a = address.clone();
-    let t = topic.clone();
+    let mut t = topic.clone();
+    let tns = tn.to_string();
+    t.push_str(&tns);
     tn += 1;
     return task::spawn(async move {
       time::sleep(Duration::from_secs(thread_delay * tn)).await;
