@@ -1,27 +1,28 @@
 #[macro_use]
+#[allow(non_snake_case)]
 extern crate serde;
-use tokio::sync::mpsc::{channel};
+//use tokio::sync::mpsc::{channel};
 use tokio::{task, time, signal};
 use chrono::Utc;
 
 // use std::sync::mpsc::channel;
 // use std::thread;
 
-use std::env;
+use std::{env, vec};
 use rumqttc::{MqttOptions, QoS, AsyncClient, Request, Publish, Incoming, Outgoing, Event};
 use std::time::Duration;
-use std::fs::File;
-use std::io::{BufReader};
-use std::io::prelude::*;
+//use std::fs::File;
+//use std::io::{BufReader};
+//use std::io::prelude::*;
 
 extern crate env_logger;
 use log::{info, error};
 
-use ctrlc::set_handler;
+//use ctrlc::set_handler;
 
 use rand::{distributions::Alphanumeric, Rng, thread_rng};
 
-#[macro_use]
+//#[macro_use]
 extern crate lazy_static;
 
 use std::collections::HashMap;
@@ -167,7 +168,13 @@ async fn main() {
   let p = Arc::clone(&published);
   
   let container_delay = env::var("CONTAINER_DELAY_S").unwrap_or("0".to_string()).parse::<u64>().unwrap();
-  time::sleep(Duration::from_secs(container_delay)).await;
+  let pod_name = env::var("POD_NAME").unwrap_or("client-default-name-0".to_string());
+  info!("Replica Name {}" , pod_name);
+  let split = pod_name.split("-");
+  let split_name = split.collect::<Vec<&str>>();
+  let wait_mult = split_name[3].parse::<u64>().unwrap();
+  info!("Sleeping for {}" , (wait_mult * container_delay));
+  time::sleep(Duration::from_secs(wait_mult * container_delay)).await;
   
   let address = env::var("MQTT_BROKER_ADDRESS").unwrap(); 
   let port = env::var("MQTT_BROKER_PORT").unwrap().parse::<u16>().unwrap();
