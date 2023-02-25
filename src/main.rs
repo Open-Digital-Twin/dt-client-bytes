@@ -168,14 +168,23 @@ async fn main() {
   let p = Arc::clone(&published);
   
   let container_delay = env::var("CONTAINER_DELAY_S").unwrap_or("0".to_string()).parse::<u64>().unwrap();
-  let pod_name = env::var("POD_NAME").unwrap_or("client-default-name-0".to_string());
+  let pod_name = env::var("POD_NAME").unwrap_or("NO_POD_NAME".to_string());
   info!("Replica Name {}" , pod_name);
   let split = pod_name.split("-");
   let split_name = split.collect::<Vec<&str>>();
-  let wait_mult = split_name[3].parse::<u64>().unwrap();
-  info!("Sleeping for {}" , (wait_mult * container_delay));
-  time::sleep(Duration::from_secs(wait_mult * container_delay)).await;
-  
+
+  if pod_name == "NO_POD_NAME" {
+    info!("No pod name given");
+    info!("Sleeping for {}" , container_delay);
+    time::sleep(Duration::from_secs(container_delay)).await;
+  }
+
+  else {
+    info!("Replica Name {}" , pod_name);
+    let wait_mult = split_name[3].parse::<u64>().unwrap();
+    info!("Sleeping for {}" , (wait_mult * container_delay));
+    time::sleep(Duration::from_secs(wait_mult * container_delay)).await;
+  }
   let address = env::var("MQTT_BROKER_ADDRESS").unwrap(); 
   let port = env::var("MQTT_BROKER_PORT").unwrap().parse::<u16>().unwrap();
   
@@ -187,7 +196,7 @@ async fn main() {
   
   let clients = env::var("MQTT_AMOUNT_OF_CLIENTS").unwrap_or("1".to_string()).parse::<usize>().unwrap();
   let mut client_vec: Vec<usize> = [].to_vec();
-  let mut tn = 0;
+  let mut thread_number = 0;
 
   for n in 1..clients+1 {
     client_vec.push(n);
@@ -196,14 +205,15 @@ async fn main() {
   let tasks: Vec<_> = client_vec
   .into_iter()
   .map(|client| {
-    let a = address.clone();
-    let mut t = topic.clone();
-    let tns = tn.to_string();
-    t.push_str(&tns);
-    tn += 1;
+    let address_clone = address.clone();
+    let mut topic_clone = topic.clone();
+    let thread_number_string = thread_number.to_string();
+    topic_clone.push_str(&thread_number_string);
+    thread_number += 1;
     return task::spawn(async move {
-      time::sleep(Duration::from_secs(thread_delay * tn)).await;
-      return client_thread(client, a, port, t, buffer_size, message_limit, message_delay_ms).await;
+      let sleep_time = (thread_number - 1) * thread_delay;
+      time::sleep(Duration::from_secs(sleep_time)).await;
+      return client_thread(client, address_clone, port, topic_clone, buffer_size, message_limit, message_delay_ms).await;
     });
   }).collect();
 
