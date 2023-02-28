@@ -172,6 +172,7 @@ async fn main() {
   info!("Replica Name {}" , pod_name);
   let split = pod_name.split("-");
   let split_name = split.collect::<Vec<&str>>();
+  let replica_n = split_name[3].parse::<u64>().unwrap_or(0);
 
   if pod_name == "NO_POD_NAME" {
     info!("No pod name given");
@@ -181,9 +182,8 @@ async fn main() {
 
   else {
     info!("Replica Name {}" , pod_name);
-    let wait_mult = split_name[3].parse::<u64>().unwrap();
-    info!("Sleeping for {}" , (wait_mult * container_delay));
-    time::sleep(Duration::from_secs(wait_mult * container_delay)).await;
+    info!("Sleeping for {}" , (replica_n * container_delay));
+    time::sleep(Duration::from_secs(replica_n * container_delay)).await;
   }
   let address = env::var("MQTT_BROKER_ADDRESS").unwrap(); 
   let port = env::var("MQTT_BROKER_PORT").unwrap().parse::<u16>().unwrap();
@@ -192,8 +192,19 @@ async fn main() {
   let message_limit = env::var("MQTT_CLIENT_MESSAGES_TO_SEND").unwrap_or("100".to_string()).parse::<u64>().unwrap();
   let message_delay_ms = env::var("MQTT_CLIENT_MESSAGE_DELAY_MS").unwrap_or("0".to_string()).parse::<u64>().unwrap();
   let topic = env::var("MQTT_CLIENT_TOPIC").unwrap();
+  let topic_levels = topic.split("/").collect::<Vec<&str>>();
+  let mut source = topic_levels[0].to_string();
+  source.push('-');
+  source.push_str(&replica_n.to_string());
+  let mut i = 1;
+  while i < topic_levels.len(){
+    source.push('/');
+    source.push_str(topic_levels[i]);
+    i += 1;
+  }
+
+
   let thread_delay = env::var("MQTT_THREAD_DELAY").unwrap().parse::<u64>().unwrap();
-  
   let clients = env::var("MQTT_AMOUNT_OF_CLIENTS").unwrap_or("1".to_string()).parse::<usize>().unwrap();
   let mut client_vec: Vec<usize> = [].to_vec();
   let mut thread_number = 0;
@@ -206,7 +217,7 @@ async fn main() {
   .into_iter()
   .map(|client| {
     let address_clone = address.clone();
-    let mut topic_clone = topic.clone();
+    let mut topic_clone = source.clone();
     let thread_number_string = thread_number.to_string();
     topic_clone.push_str(&thread_number_string);
     thread_number += 1;
