@@ -1,4 +1,3 @@
-#[macro_use]
 #[allow(non_snake_case)]
 extern crate serde;
 //use tokio::sync::mpsc::{channel};
@@ -8,8 +7,8 @@ use chrono::Utc;
 // use std::sync::mpsc::channel;
 // use std::thread;
 
-use std::{env, vec};
-use rumqttc::{MqttOptions, QoS, AsyncClient, Request, Publish, Incoming, Outgoing, Event};
+use std::{env};
+use rumqttc::{MqttOptions, QoS, AsyncClient, Incoming, Outgoing, Event, ClientError};
 use std::time::Duration;
 //use std::fs::File;
 //use std::io::{BufReader};
@@ -62,13 +61,10 @@ async fn client_thread(client: usize, address: String, port: u16, topic: String,
     .take(10).collect();
 
   let mut mqttoptions = MqttOptions::new(id, address.clone(), port);
-  mqttoptions.set_keep_alive(30);
+  mqttoptions.set_keep_alive(Duration::from_secs(30));
   mqttoptions.set_clean_session(false);
 
-  let (mut _client, mut eventloop) = AsyncClient::new(mqttoptions, 20);
-  let requests_tx = eventloop.handle();
-  
-  let tx = requests_tx.clone();
+  let (client, mut eventloop) = AsyncClient::new(mqttoptions, 20);
 
   task::spawn(async move {
     info!("Thread of topic {}", topic.clone());
@@ -87,7 +83,7 @@ async fn client_thread(client: usize, address: String, port: u16, topic: String,
 
       let t = topic.clone();
 
-      tx.send(publish_request(&(payload.as_str()), &t.clone())).await.unwrap();
+      publish_request(client.clone(), &(payload.as_str()), &t.clone()).await.unwrap();
 
       // {
       //   // Access global mutexed variable
@@ -177,14 +173,13 @@ async fn main() {
     info!("No pod name given");
     info!("Sleeping for {}" , container_delay);
     time::sleep(Duration::from_secs(container_delay)).await;
-  }
-
-  else {
+  } else {
     info!("Replica Name {}" , pod_name);
     let wait_mult = split_name[3].parse::<u64>().unwrap();
     info!("Sleeping for {}" , (wait_mult * container_delay));
     time::sleep(Duration::from_secs(wait_mult * container_delay)).await;
   }
+
   let address = env::var("MQTT_BROKER_ADDRESS").unwrap(); 
   let port = env::var("MQTT_BROKER_PORT").unwrap().parse::<u16>().unwrap();
   
@@ -241,12 +236,11 @@ fn get_qos(variable: &str) -> QoS {
   }
 }
 
-fn publish_request(payload: &str, topic: &str) -> Request {
+async fn publish_request(client: AsyncClient, payload: &str, topic: &str) -> Result<(), ClientError> {
   let topic = topic.to_owned();
   let message = String::from(payload);
 
   let qos = get_qos("MQTT_CLIENT_QOS");
 
-  let publish = Publish::new(&topic, qos, message);
-  Request::Publish(publish)
+  client.publish(&topic, qos, false, message).await
 }
