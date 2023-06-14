@@ -223,7 +223,7 @@ async fn main() {
     thread_number += 1;
     return task::spawn(async move {
       let sleep_time = (thread_number - 1) * thread_delay;
-      time::sleep(Duration::from_secs(sleep_time)).await;
+      time::sleep(Duration::from_millis(sleep_time)).await;
       return client_thread(client, address_clone, port, topic_clone, buffer_size, message_limit, message_delay_ms).await;
     });
   }).collect();
